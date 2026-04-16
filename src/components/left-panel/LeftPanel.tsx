@@ -22,7 +22,7 @@ export function LeftPanel({
   onSubmit,
 }: LeftPanelProps) {
   return (
-    <aside className="flex h-full w-full max-w-md flex-col gap-6 overflow-y-auto border-r border-black/10 bg-black/5 p-6 dark:border-white/10 dark:bg-white/5">
+    <aside className="flex h-full w -md flex-col gap-6 overflow-y-auto border-r border-black/10 bg-black/5 p-6 dark:border-white/10 dark:bg-white/5">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold">이미지 업로드</h1>
         <p className="text-sm text-black/70 dark:text-white/70">
