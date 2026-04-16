@@ -20,7 +20,9 @@ export function ImageWorkspace() {
   const [detections, setDetections] = useState<Detection[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
-  const [extraInstruction, setExtraInstruction] = useState("");
+  const [extraInstruction, setExtraInstruction] = useState(
+    "문서에서 표, 그래프, 차트, 이미지 등의 시각요소를 탐지하세요.\n각 시각요소는 관련 제목, 단위, 캡션, 축 라벨을 함께 포함하고, bounding box를 시각요소 영역보다 상하좌우 각각 5픽셀씩 확장하여 반환하세요.\n시각요소에 딱 맞게 자르지 말고, 항상 여백을 포함하세요.\n출력은 JSON 형식으로 작성하세요.",
+  );
 
   useEffect(() => {
     return () => {
