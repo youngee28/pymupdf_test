@@ -1,3 +1,5 @@
+import { ImageWorkspace } from "@/components/ImageWorkspace";
+
 export default function Home() {
-  return <main className="min-h-screen" />;
+  return <ImageWorkspace />;
 }
