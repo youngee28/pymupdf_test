@@ -12,12 +12,14 @@ type RequestStatus = "idle" | "loading" | "success" | "error";
 
 export function ImageWorkspace() {
   const requestIdRef = useRef(0);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<RequestStatus>("idle");
   const [detections, setDetections] = useState<Detection[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [extraInstruction, setExtraInstruction] = useState("");
 
   useEffect(() => {
     return () => {
@@ -27,9 +29,14 @@ export function ImageWorkspace() {
     };
   }, [previewUrl]);
 
-  const runDetection = async (file: File, requestId: number) => {
+  const runDetection = async (
+    file: File,
+    requestId: number,
+    nextExtraInstruction: string,
+  ) => {
     const formData = new FormData();
     formData.append("image", file);
+    formData.append("extraInstruction", nextExtraInstruction);
 
     try {
       const response = await fetch("/api/image-prompt", {
@@ -72,6 +79,7 @@ export function ImageWorkspace() {
     }
 
     if (!file) {
+      setSelectedFile(null);
       setSelectedFileName(null);
       setPreviewUrl(null);
       setFormError(null);
@@ -84,6 +92,7 @@ export function ImageWorkspace() {
     const validationError = validateImageFile(file);
 
     if (validationError) {
+      setSelectedFile(null);
       setSelectedFileName(null);
       setPreviewUrl(null);
       setFormError(validationError);
@@ -95,14 +104,33 @@ export function ImageWorkspace() {
 
     const nextPreviewUrl = URL.createObjectURL(file);
 
+    setSelectedFile(file);
     setSelectedFileName(file.name);
     setPreviewUrl(nextPreviewUrl);
+    setFormError(null);
+    setRequestError(null);
+    setStatus("idle");
+    setDetections([]);
+  };
+
+  const handleRun = () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
+    if (!selectedFile) {
+      setFormError("먼저 이미지 파일을 선택해 주세요.");
+      setRequestError(null);
+      setStatus("error");
+      setDetections([]);
+      return;
+    }
+
     setFormError(null);
     setRequestError(null);
     setStatus("loading");
     setDetections([]);
 
-    void runDetection(file, requestId);
+    void runDetection(selectedFile, requestId, extraInstruction);
   };
 
   return (
@@ -111,7 +139,10 @@ export function ImageWorkspace() {
         selectedFileName={selectedFileName}
         error={formError}
         status={status}
+        extraInstruction={extraInstruction}
         onFileSelect={handleFileSelect}
+        onExtraInstructionChange={setExtraInstruction}
+        onRun={handleRun}
       />
       <CenterPanel
         fileName={selectedFileName}

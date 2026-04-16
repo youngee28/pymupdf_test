@@ -7,10 +7,9 @@ import type { Detection, DetectionResponse } from "@/lib/detections";
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
 
-const DETECTION_PROMPT = `업로드된 문서 이미지에 있는 레이아웃 영역을 바운딩 박스 수치로 알려줘.
+const DETECTION_PROMPT = `
 JSON 형식으로만 반환합니다.
 마크다운 형식은 반환하지 않습니다.
-설명 텍스트는 포함하지 않습니다.
 
 Return this exact schema:
 {
@@ -28,12 +27,51 @@ Return this exact schema:
   ]
 }
 
-Rules:
-- bbox values must be normalized decimals between 0 and 1.
-- origin is top-left.
-- width and height must be positive.
-- If nothing is found, return {"detections": []}.
-- Labels should be short, e.g. title, paragraph, table, figure, header, footer, list, caption.`;
+규칙:
+- 바운딩 박스 값은 0에서 1 사이의 정규화된 소수여야 합니다.
+- 원점은 왼쪽 상단입니다.
+- 너비와 높이는 양수여야 합니다.
+- 아무것도 찾지 못하면 {"detections": []}를 반환합니다.`;
+
+const DETECTION_PROMPT_REINFORCEMENT = `JSON 형식으로만 반환합니다.
+마크다운 형식은 반환하지 않습니다.
+
+Return this exact schema:
+{
+  "detections": [
+    {
+      "label": "string",
+      "bbox": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 0.0,
+        "height": 0.0
+      },
+      "score": 0.0
+    }
+  ]
+}
+
+규칙:
+- 바운딩 박스 값은 0에서 1 사이의 정규화된 소수여야 합니다.
+- 원점은 왼쪽 상단입니다.
+- 너비와 높이는 양수여야 합니다.
+- 아무것도 찾지 못하면 {"detections": []}를 반환합니다.`;
+
+function buildDetectionPrompt(extraInstruction: string): string {
+  if (!extraInstruction) {
+    return DETECTION_PROMPT;
+  }
+
+  return `${DETECTION_PROMPT}
+
+추가 테스트 지시사항:
+${extraInstruction}
+
+위 추가 지시사항은 테스트용 보조 입력입니다. 위 기본 bbox 감지 지시사항을 유지한 상태에서 아래 JSON-only 반환 규칙과 스키마를 반드시 따르세요.
+
+${DETECTION_PROMPT_REINFORCEMENT}`;
+}
 
 type GeminiResponse = {
   candidates?: Array<{
@@ -107,6 +145,14 @@ function extractJsonObject(text: string): string | null {
   }
 
   return trimmedText.slice(startIndex, endIndex + 1);
+}
+
+function normalizeExtraInstruction(value: FormDataEntryValue | null): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().slice(0, 2000);
 }
 
 function normalizeUnitValue(value: unknown): number | null {
@@ -194,6 +240,9 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const image = formData.get("image");
+    const extraInstruction = normalizeExtraInstruction(
+      formData.get("extraInstruction"),
+    );
 
     if (!(image instanceof File)) {
       return Response.json(
@@ -236,7 +285,7 @@ export async function POST(request: Request) {
                 },
               },
               {
-                text: DETECTION_PROMPT,
+                text: buildDetectionPrompt(extraInstruction),
               },
             ],
           },
