@@ -15,6 +15,7 @@ export function ImageWorkspace() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedDetectionId, setSelectedDetectionId] = useState<string | null>(null);
   const [status, setStatus] = useState<RequestStatus>("idle");
   const [detections, setDetections] = useState<Detection[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
@@ -82,6 +83,7 @@ export function ImageWorkspace() {
       setSelectedFile(null);
       setSelectedFileName(null);
       setPreviewUrl(null);
+      setSelectedDetectionId(null);
       setFormError(null);
       setRequestError(null);
       setStatus("idle");
@@ -95,6 +97,7 @@ export function ImageWorkspace() {
       setSelectedFile(null);
       setSelectedFileName(null);
       setPreviewUrl(null);
+      setSelectedDetectionId(null);
       setFormError(validationError);
       setRequestError(null);
       setStatus("error");
@@ -107,6 +110,7 @@ export function ImageWorkspace() {
     setSelectedFile(file);
     setSelectedFileName(file.name);
     setPreviewUrl(nextPreviewUrl);
+    setSelectedDetectionId(null);
     setFormError(null);
     setRequestError(null);
     setStatus("idle");
@@ -127,6 +131,7 @@ export function ImageWorkspace() {
 
     setFormError(null);
     setRequestError(null);
+    setSelectedDetectionId(null);
     setStatus("loading");
     setDetections([]);
 
@@ -154,6 +159,10 @@ export function ImageWorkspace() {
         previewUrl={previewUrl}
         status={status}
         detections={detections}
+        selectedDetectionId={selectedDetectionId}
+        onSelectedDetectionChangeAction={setSelectedDetectionId}
+        sourceFileName={selectedFileName}
+        sourceMimeType={selectedFile?.type ?? null}
         error={requestError ?? formError}
       />
     </div>

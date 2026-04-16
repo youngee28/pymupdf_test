@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { cropAndDownloadDetection } from "@/lib/crop-detection";
 import type { Detection } from "@/lib/detections";
 
 type RequestStatus = "idle" | "loading" | "success" | "error";
@@ -11,6 +12,10 @@ type RightPanelProps = {
   previewUrl: string | null;
   status: RequestStatus;
   detections: Detection[];
+  selectedDetectionId: string | null;
+  onSelectedDetectionChangeAction: (detectionId: string | null) => void;
+  sourceFileName: string | null;
+  sourceMimeType: string | null;
   error: string | null;
 };
 
@@ -43,11 +48,17 @@ export function RightPanel({
   previewUrl,
   status,
   detections,
+  selectedDetectionId,
+  onSelectedDetectionChangeAction,
+  sourceFileName,
+  sourceMimeType,
   error,
 }: RightPanelProps) {
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
   const [frameSize, setFrameSize] = useState<Size>({ width: 0, height: 0 });
   const [loadedImage, setLoadedImage] = useState<LoadedImage | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     const element = previewFrameRef.current;
@@ -75,6 +86,14 @@ export function RightPanel({
       observer.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    setLoadedImage(null);
+  }, [previewUrl]);
+
+  useEffect(() => {
+    setSaveError(null);
+  }, [previewUrl, selectedDetectionId, status]);
 
   const renderedImageArea = useMemo(() => {
     if (
@@ -105,6 +124,38 @@ export function RightPanel({
   }, [frameSize, loadedImage, previewUrl]);
 
   const hasPreview = Boolean(previewUrl);
+  const selectedDetection = useMemo(
+    () => detections.find((detection) => detection.id === selectedDetectionId) ?? null,
+    [detections, selectedDetectionId],
+  );
+  const isSaveDisabled =
+    status === "loading" ||
+    isSaving ||
+    !previewUrl ||
+    !sourceFileName ||
+    !selectedDetection;
+
+  const handleSaveSelected = async () => {
+    if (isSaveDisabled || !previewUrl || !sourceFileName || !selectedDetection) {
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      await cropAndDownloadDetection({
+        imageSrc: previewUrl,
+        detection: selectedDetection,
+        fileName: sourceFileName,
+        mimeType: sourceMimeType ?? undefined,
+      });
+    } catch {
+      setSaveError("선택한 bbox 이미지를 저장하지 못했습니다. 다시 시도해 주세요.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <aside className="flex h-full min-h-0 flex-1 flex-col gap-3 border-l border-black/10 bg-black/5 p-6 dark:border-white/10 dark:bg-white/5">
@@ -113,6 +164,36 @@ export function RightPanel({
         <p className="text-sm text-black/60 dark:text-white/60">
           {getStatusMessage(status, error)}
         </p>
+      </div>
+
+      <div className="shrink-0 rounded-xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-black/20">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 space-y-1">
+            <p className="text-sm font-medium">선택된 bbox</p>
+            <p className="truncate text-sm text-black/60 dark:text-white/60">
+              {selectedDetection
+                ? `${selectedDetection.label} 영역이 선택되었습니다.`
+                : "이미지 위 bbox를 클릭해 선택하세요."}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              void handleSaveSelected();
+            }}
+            disabled={isSaveDisabled}
+            className="rounded-xl bg-black px-4 py-3 text-sm font-medium text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:bg-black/40 dark:bg-white dark:text-black dark:hover:bg-white/85 dark:disabled:bg-white/40"
+          >
+            {isSaving ? "저장 중..." : "Save selected"}
+          </button>
+        </div>
+
+        {saveError ? (
+          <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
+            {saveError}
+          </p>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 rounded-2xl border border-black/10 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-black">
@@ -141,26 +222,47 @@ export function RightPanel({
               />
 
               {renderedImageArea
-                ? detections.map((detection) => (
-                    <div
-                      key={detection.id}
-                      className="pointer-events-none absolute border border-black shadow-[0_0_0_1px_rgba(255,255,255,0.35)]"
-                      style={{
-                        left:
-                          renderedImageArea.left +
-                          detection.bbox.x * renderedImageArea.width,
-                        top:
-                          renderedImageArea.top +
-                          detection.bbox.y * renderedImageArea.height,
-                        width: detection.bbox.width * renderedImageArea.width,
-                        height: detection.bbox.height * renderedImageArea.height,
-                      }}
-                    >
-                      <span className="absolute left-0 top-0 max-w-full truncate bg-black/80 px-2 py-1 text-[11px] leading-none text-white">
-                        {detection.label}
-                      </span>
-                    </div>
-                  ))
+                ? detections.map((detection) => {
+                    const isSelected = detection.id === selectedDetectionId;
+
+                    return (
+                      <button
+                        key={detection.id}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => {
+                          onSelectedDetectionChangeAction(
+                            isSelected ? null : detection.id,
+                          );
+                        }}
+                        className={`absolute overflow-hidden border text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 dark:focus-visible:ring-white/40 ${
+                          isSelected
+                            ? "border-2 border-black bg-black/10 shadow-sm dark:border-white dark:bg-white/10"
+                            : "border border-black/70 bg-black/5 shadow-sm hover:bg-black/10 dark:border-white/70 dark:bg-white/5 dark:hover:bg-white/10"
+                        }`}
+                        style={{
+                          left:
+                            renderedImageArea.left +
+                            detection.bbox.x * renderedImageArea.width,
+                          top:
+                            renderedImageArea.top +
+                            detection.bbox.y * renderedImageArea.height,
+                          width: detection.bbox.width * renderedImageArea.width,
+                          height: detection.bbox.height * renderedImageArea.height,
+                        }}
+                      >
+                        <span
+                          className={`absolute left-0 top-0 max-w-full truncate px-2 py-1 text-xs font-medium leading-none ${
+                            isSelected
+                              ? "bg-black text-white dark:bg-white dark:text-black"
+                              : "bg-black/80 text-white dark:bg-white/80 dark:text-black"
+                          }`}
+                        >
+                          {detection.label}
+                        </span>
+                      </button>
+                    );
+                  })
                 : null}
 
               <div className="pointer-events-none absolute inset-x-3 bottom-3 flex flex-col gap-2">
