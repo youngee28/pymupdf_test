@@ -1,25 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { LeftPanel } from "@/components/left-panel/LeftPanel";
 import { RightPanel } from "@/components/right-panel/RightPanel";
-import type { Box, Size } from "@/lib/coordinates";
 import { validateImageFile } from "@/lib/image-upload";
+import type { ResultPart } from "@/lib/result-parts";
 
-const DEFAULT_BOX: Box = {
-  x: 0,
-  y: 0,
-  width: 0,
-  height: 0,
-};
+type RequestStatus = "idle" | "loading" | "success" | "error";
 
 export function ImageWorkspace() {
+  const requestIdRef = useRef(0);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [box, setBox] = useState<Box>(DEFAULT_BOX);
-  const [naturalSize, setNaturalSize] = useState<Size | null>(null);
+  const [prompt, setPrompt] = useState("");
+  const [status, setStatus] = useState<RequestStatus>("idle");
+  const [resultParts, setResultParts] = useState<ResultPart[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -35,50 +34,120 @@ export function ImageWorkspace() {
     }
 
     if (!file) {
-      setPreviewUrl(null);
+      setSelectedFile(null);
       setSelectedFileName(null);
-      setError(null);
-      setBox(DEFAULT_BOX);
-      setNaturalSize(null);
+      setPreviewUrl(null);
+      setFormError(null);
+      setRequestError(null);
+      setStatus("idle");
+      setResultParts([]);
       return;
     }
 
     const validationError = validateImageFile(file);
 
     if (validationError) {
-      setPreviewUrl(null);
+      setSelectedFile(null);
       setSelectedFileName(null);
-      setError(validationError);
-      setBox(DEFAULT_BOX);
-      setNaturalSize(null);
+      setPreviewUrl(null);
+      setFormError(validationError);
+      setRequestError(null);
+      setStatus("error");
+      setResultParts([]);
       return;
     }
 
     const nextPreviewUrl = URL.createObjectURL(file);
 
-    setPreviewUrl(nextPreviewUrl);
+    setSelectedFile(file);
     setSelectedFileName(file.name);
-    setError(null);
-    setBox(DEFAULT_BOX);
-    setNaturalSize(null);
+    setPreviewUrl(nextPreviewUrl);
+    setFormError(null);
+    setRequestError(null);
+    setStatus("idle");
+    setResultParts([]);
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedFile) {
+      setFormError("먼저 이미지 파일을 선택해 주세요.");
+      setRequestError(null);
+      setStatus("error");
+      return;
+    }
+
+    const trimmedPrompt = prompt.trim();
+
+    if (!trimmedPrompt) {
+      setFormError("프롬프트를 입력해 주세요.");
+      setRequestError(null);
+      setStatus("error");
+      return;
+    }
+
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
+    const formData = new FormData();
+    formData.append("image", selectedFile);
+    formData.append("prompt", trimmedPrompt);
+
+    setStatus("loading");
+    setFormError(null);
+    setRequestError(null);
+    setResultParts([]);
+
+    try {
+      const response = await fetch("/api/image-prompt", {
+        method: "POST",
+        body: formData,
+      });
+
+      const payload = (await response.json()) as {
+        parts?: ResultPart[];
+        finishReason?: string | null;
+        error?: string;
+      };
+
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      if (!response.ok || !Array.isArray(payload.parts) || payload.parts.length === 0) {
+        setStatus("error");
+        setRequestError(payload.error ?? "결과를 불러오지 못했습니다.");
+        return;
+      }
+
+      setStatus("success");
+      setResultParts(payload.parts);
+    } catch {
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      setStatus("error");
+      setRequestError("요청 중 문제가 발생했습니다. 다시 시도해 주세요.");
+    }
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
       <LeftPanel
         selectedFileName={selectedFileName}
-        error={error}
-        box={box}
-        naturalSize={naturalSize}
+        prompt={prompt}
+        error={formError}
+        status={status}
         onFileSelect={handleFileSelect}
-        onBoxChange={setBox}
+        onPromptChange={setPrompt}
+        onSubmit={handleSubmit}
       />
       <RightPanel
         previewUrl={previewUrl}
         fileName={selectedFileName}
-        box={box}
-        naturalSize={naturalSize}
-        onImageLoad={setNaturalSize}
+        status={status}
+        resultParts={resultParts}
+        error={requestError}
       />
     </div>
   );
