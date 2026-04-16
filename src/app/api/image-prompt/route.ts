@@ -5,9 +5,9 @@ import {
 import type { Detection, DetectionResponse } from "@/lib/detections";
 
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
 
-const DETECTION_PROMPT = `업로드된 문서 이미지를 분석하고 레이아웃 영역을 감지합니다.
+const DETECTION_PROMPT = `업로드된 문서 이미지에 있는 레이아웃 영역을 바운딩 박스 수치로 알려줘.
 JSON 형식으로만 반환합니다.
 마크다운 형식은 반환하지 않습니다.
 설명 텍스트는 포함하지 않습니다.

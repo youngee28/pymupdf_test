@@ -64,6 +64,9 @@ export function ImageWorkspace() {
   };
 
   const handleFileSelect = (file: File | null) => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
@@ -91,8 +94,6 @@ export function ImageWorkspace() {
     }
 
     const nextPreviewUrl = URL.createObjectURL(file);
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
 
     setSelectedFileName(file.name);
     setPreviewUrl(nextPreviewUrl);
@@ -118,7 +119,12 @@ export function ImageWorkspace() {
         detections={detections}
         error={requestError}
       />
-      <RightPanel />
+      <RightPanel
+        previewUrl={previewUrl}
+        status={status}
+        detections={detections}
+        error={requestError ?? formError}
+      />
     </div>
   );
 }

@@ -16,7 +16,7 @@ export function CenterPanel({
   error,
 }: CenterPanelProps) {
   return (
-    <section className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-neutral-100 p-4 dark:bg-neutral-950">
+    <section className="flex h-full w-full max-w-md flex-col overflow-hidden bg-neutral-100 p-4 dark:bg-neutral-950">
       <div className="mb-3 shrink-0 space-y-1">
         <p className="text-sm text-black/70 dark:text-white/70">
           {fileName ?? "업로드한 파일과 bbox JSON 결과가 여기에 표시됩니다."}
